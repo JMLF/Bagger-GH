@@ -1,0 +1,20 @@
+.DS_Store
+.env
+tokens.ini
+runs
+temps
+temp
+
+# secrets
+secrets.toml
+.env
+
+# outputs
+runs/
+
+# python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+

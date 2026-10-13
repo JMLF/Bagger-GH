@@ -1,0 +1,26 @@
+[project]
+name = "ml-repo-sampler"
+version = "0.1.0"
+description = "Sample GitHub repositories containing ML pipelines with configurable search/filter heuristics"
+readme = "README.md"
+authors = [
+    { name = "JMLF", email = "marius.mignard@inria.fr" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.34.2",
+    "tqdm>=4.70.1",
+    "typer>=0.27.2",
+]
+
+[project.scripts]
+ml-repo-sampler = "ml_repo_sampler:main"
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

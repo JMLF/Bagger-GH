@@ -1,0 +1,889 @@
+# ml-repo-sampler configuration.
+# Relative paths are resolved from the directory of this file.
+# Select heuristics with `enabled = true/false` here, or on the CLI with
+# --query/-q NAME (only these queries), --enable/-e NAME, --disable/-d NAME.
+
+[run]
+name = "ml-pipelines"          # prefix of the run directory: <output_dir>/<name>-<timestamp>
+output_dir = "runs"
+log_level = "INFO"             # console level; run.log always holds DEBUG
+progress = true                # tqdm progress bars (auto-hidden when not in a terminal; CLI: --no-progress)
+plugins = []                   # Python files defining extra heuristic types (see docs/extending.md)
+
+[github]
+token_file = "secrets.toml"    # TOML file with [github] token = "..." or tokens = [...]
+token_env = "GITHUB_TOKEN"     # takes precedence over token_file if set (comma-separated allowed)
+per_page = 100
+max_pages = 10                 # 10 x 100 = GitHub's 1000 results cap per query
+search_min_interval = 6.5      # seconds between search calls (code search: 10 req/min per user)
+core_min_interval = 0.0        # seconds between /repos calls (5000 req/h per user)
+timeout = 30
+max_retries = 6
+count_commits = true           # enrich: +1 call per repo to store commit_count (min_commits)
+
+# ---------------------------------------------------------------------------
+# STEP 1 - Search heuristics
+# type = "code"         -> GET /search/code (qualifiers: language:, path:, filename:, extension:, repo:, org:)
+#                          Must contain at least one search term besides qualifiers.
+# type = "repositories" -> GET /search/repositories (qualifiers: topic:, stars:, created:, pushed:, language:)
+# partitions: each entry is appended to the query and run separately, to get past the
+#             1000-results cap (e.g. ["size:<1000", "size:1000..5000", "size:>5000"]).
+# auto_partition: true (or a qualifier: "size" for code; "created", "pushed", "stars",
+#             "forks", "size" for repositories) splits the query on that qualifier range,
+#             recursively, until every slice has <= 1000 results. This collects ALL results,
+#             at about total_count / 100 search calls (10 per minute and per token).
+#             auto_partition_range = [low, high] bounds the range (defaults: size 0..1000000
+#             bytes for code, created 2008-01-01..today).
+# ---------------------------------------------------------------------------
+
+[search]
+default_partitions = []        # used by queries that do not define `partitions`
+auto_partition = true         # default for queries that do not set `auto_partition`
+max_hits = 2000
+sampling = "stratified"
+
+# ───────── scikit-learn ─────────
+[[search.queries]]
+name = "sklearn_any"
+library = "scikit-learn"
+query = '"from sklearn" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sklearn_import"
+library = "scikit-learn"
+query = '"import sklearn" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sklearn_ensemble"
+library = "scikit-learn"
+query = '"from sklearn.ensemble import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sklearn_linear_model"
+library = "scikit-learn"
+query = '"from sklearn.linear_model import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sklearn_model_selection"
+library = "scikit-learn"
+query = '"from sklearn.model_selection import" language:Python'
+enabled = false
+
+# ───────── TensorFlow / Keras ─────────
+[[search.queries]]
+name = "tf_keras_import"
+library = "tensorflow_keras"
+query = '"from tensorflow.keras" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "tf_from_keras"
+library = "tensorflow_keras"
+query = '"from tensorflow import keras" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "tf_gradient_tape"
+library = "tensorflow"
+query = '"tf.GradientTape" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "keras_from"
+library = "keras"
+query = '"from keras" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "keras_tuner"
+library = "keras_tuner"
+query = '"import keras_tuner" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "tf_decision_forests"
+library = "tensorflow_decision_forests"
+query = '"import tensorflow_decision_forests" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "tf_probability"
+library = "tensorflow_probability"
+query = '"import tensorflow_probability" language:Python'
+enabled = false
+
+# ───────── PyTorch et écosystème ─────────
+[[search.queries]]
+name = "torch_from"
+library = "pytorch"
+query = '"from torch import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "torch_nn_module"
+library = "pytorch"
+query = '"nn.Module" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "torch_optim"
+library = "pytorch"
+query = '"torch.optim" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "torch_dataloader"
+library = "pytorch"
+query = '"from torch.utils.data import DataLoader" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "pytorch_lightning"
+library = "pytorch_lightning"
+query = '"import pytorch_lightning" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "lightning"
+library = "lightning"
+query = '"import lightning" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "skorch"
+library = "skorch"
+query = '"import skorch" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "torch_geometric"
+library = "pytorch_geometric"
+query = '"import torch_geometric" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "dgl"
+library = "dgl"
+query = '"import dgl" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "timm"
+library = "timm"
+query = '"import timm" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "torchvision"
+library = "torchvision"
+query = '"import torchvision" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "deepspeed"
+library = "deepspeed"
+query = '"import deepspeed" language:Python'
+enabled = false
+
+# ───────── Hugging Face ─────────
+[[search.queries]]
+name = "hf_transformers"
+library = "transformers"
+query = '"from transformers import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "hf_trainer"
+library = "transformers"
+query = '"TrainingArguments" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "hf_peft"
+library = "peft"
+query = '"from peft import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "hf_trl"
+library = "trl"
+query = '"from trl import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "hf_accelerate"
+library = "accelerate"
+query = '"from accelerate import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sentence_transformers"
+library = "sentence_transformers"
+query = '"from sentence_transformers import" language:Python'
+enabled = false
+
+# ───────── JAX et dérivés ─────────
+[[search.queries]]
+name = "jax_from"
+library = "jax"
+query = '"from jax import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "flax"
+library = "flax"
+query = '"from flax import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "optax"
+library = "optax"
+query = '"import optax" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "equinox"
+library = "equinox"
+query = '"import equinox" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "haiku"
+library = "haiku"
+query = '"import haiku" language:Python'
+enabled = false
+
+# ───────── Gradient boosting ─────────
+[[search.queries]]
+name = "lightgbm_from"
+library = "lightgbm"
+query = '"from lightgbm import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "catboost_from"
+library = "catboost"
+query = '"from catboost import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "ngboost"
+library = "ngboost"
+query = '"import ngboost" language:Python'
+enabled = false
+
+# ───────── Autres frameworks DL ─────────
+[[search.queries]]
+name = "paddle_from"
+library = "paddlepaddle"
+query = '"from paddle import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "mxnet"
+library = "mxnet"
+query = '"import mxnet" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "mindspore"
+library = "mindspore"
+query = '"import mindspore" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "oneflow"
+library = "oneflow"
+query = '"import oneflow" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "mlx"
+library = "mlx"
+query = '"import mlx" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "tinygrad"
+library = "tinygrad"
+query = '"from tinygrad import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "fastai_from"
+library = "fastai"
+query = '"from fastai" language:Python'
+enabled = false
+
+# The following one is now PyTensor and is deprecated
+[[search.queries]]
+name = "theano"
+library = "theano"
+query = '"import theano" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "chainer"
+library = "chainer"
+query = '"import chainer" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "tflearn"
+library = "tflearn"
+query = '"import tflearn" language:Python'
+enabled = false
+
+# ───────── Vision / détection ─────────
+[[search.queries]]
+name = "ultralytics"
+library = "ultralytics"
+query = '"from ultralytics import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "mmdet"
+library = "openmmlab"
+query = '"import mmdet" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "detectron2"
+library = "detectron2"
+query = '"import detectron2" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "smp"
+library = "segmentation_models_pytorch"
+query = '"import segmentation_models_pytorch" language:Python'
+enabled = false
+
+# ───────── NLP classique ─────────
+[[search.queries]]
+name = "gensim"
+library = "gensim"
+query = '"from gensim" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "spacy_train"
+library = "spacy"
+query = '"import spacy" "spacy train" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "fasttext"
+library = "fasttext"
+query = '"import fasttext" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "flair"
+library = "flair"
+query = '"from flair" language:Python'
+enabled = false
+
+# ───────── Reinforcement learning ─────────
+[[search.queries]]
+name = "sb3"
+library = "stable_baselines3"
+query = '"from stable_baselines3 import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "rllib"
+library = "ray_rllib"
+query = '"ray.rllib" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "gymnasium"
+library = "gymnasium"
+query = '"import gymnasium" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "gym"
+library = "gym"
+query = '"import gym" language:Python'
+enabled = false
+
+# ───────── Séries temporelles ─────────
+[[search.queries]]
+name = "sktime"
+library = "sktime"
+query = '"from sktime" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "prophet"
+library = "prophet"
+query = '"from prophet import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "darts"
+library = "darts"
+query = '"from darts" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "statsmodels"
+library = "statsmodels"
+query = '"import statsmodels" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "pmdarima"
+library = "pmdarima"
+query = '"import pmdarima" language:Python'
+enabled = false
+
+# ───────── AutoML / HPO ─────────
+[[search.queries]]
+name = "optuna"
+library = "optuna"
+query = '"import optuna" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "ray_tune"
+library = "ray_tune"
+query = '"from ray import tune" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "hyperopt"
+library = "hyperopt"
+query = '"from hyperopt import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "autogluon"
+library = "autogluon"
+query = '"from autogluon" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "pycaret"
+library = "pycaret"
+query = '"from pycaret" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "flaml"
+library = "flaml"
+query = '"from flaml import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "h2o"
+library = "h2o"
+query = '"import h2o" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "tpot"
+library = "tpot"
+query = '"from tpot import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "autosklearn"
+library = "auto-sklearn"
+query = '"import autosklearn" language:Python'
+enabled = false
+
+# ───────── Distribué / GPU / autres ─────────
+[[search.queries]]
+name = "pyspark_ml"
+library = "pyspark_ml"
+query = '"from pyspark.ml" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "cuml"
+library = "cuml"
+query = '"import cuml" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "dask_ml"
+library = "dask_ml"
+query = '"from dask_ml" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "river"
+library = "river"
+query = '"from river import" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "imblearn"
+library = "imbalanced-learn"
+query = '"from imblearn" language:Python'
+enabled = false
+
+# ───────── Probabiliste / bayésien ─────────
+[[search.queries]]
+name = "pymc"
+library = "pymc"
+query = '"import pymc" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "pyro"
+library = "pyro"
+query = '"import pyro" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "gpytorch"
+library = "gpytorch"
+query = '"import gpytorch" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "filterwarnings"
+library = "warnings"
+query = "warnings.filterwarnings('ignore') language:Python"
+enabled = true
+
+
+# ───────── Signaux d'entraînement indépendants de la lib ─────────
+[[search.queries]]
+name = "sig_model_fit"
+library = "generic_fit"
+query = '"model.fit(" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "sig_model_fit_nb"
+library = "generic_fit"
+query = '"model.fit(" language:"Jupyter Notebook"'
+enabled = true
+
+[[search.queries]]
+name = "sig_backward"
+library = "generic"
+query = '"loss.backward()" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_backward_nb"
+library = "generic"
+query = '"loss.backward()" language:"Jupyter Notebook"'
+enabled = false
+
+# The following one seems pretty specific to torch
+[[search.queries]]
+name = "sig_optimizer_step"
+library = "generic"
+query = '"optimizer.step()" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_trainer_train"
+library = "generic"
+query = '"trainer.train()" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_trainer_train_nb"
+library = "generic"
+query = '"trainer.train()" language:"Jupyter Notebook"'
+enabled = false
+
+[[search.queries]]
+name = "import_wandb"
+library = "generic"
+query = '"import wandb" language:Python'
+enabled = false
+# Sould also add from wandb
+
+# The following one seems to be tensorflow specific
+[[search.queries]]
+name = "sig_tensorboard_SummaryWriter"
+library = "generic"
+query = '"SummaryWriter" language:Python'
+enabled = false
+
+# --- Boucle d'entraînement ---
+[[search.queries]]
+name = "sig_epoch_loop"
+library = "generic_epoch_loop"
+query = '"for epoch in range" loss language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_epoch_loop_nb"
+library = "generic_epoch_loop"
+query = '"for epoch in range" loss language:"Jupyter Notebook"'
+enabled = false
+
+[[search.queries]]
+name = "sig_num_epochs"
+library = "generi_epoch"
+query = '"num_epochs" loss language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_num_epochs_nb"
+library = "generic_epoch"
+query = '"num_epochs" loss language:"Jupyter Notebook"'
+enabled = false
+
+
+# --- Validation / métriques ---
+[[search.queries]]
+name = "sig_val_loss"
+library = "generic_loss"
+query = '"val_loss" "train_loss" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_val_loss_nb"
+library = "generic_loss"
+query = '"val_loss" "train_loss" language:"Jupyter Notebook"'
+enabled = false
+
+[[search.queries]]
+name = "sig_early_stopping"
+library = "generic_early_stopping"
+query = '"early_stopping" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_early_stopping_nb"
+library = "generic_early_stopping"
+query = '"early_stopping" language:"Jupyter Notebook"'
+enabled = false
+
+
+# --- Experiment tracking ---
+[[search.queries]]
+name = "sig_wandb_init"
+library = "generic_wandb"
+query = '"wandb.init" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_wandb_init_nb"
+library = "generic_wandb"
+query = '"wandb.init" language:"Jupyter Notebook"'
+enabled = false
+
+[[search.queries]]
+name = "sig_mlflow"
+library = "generic_mlflow"
+query = '"mlflow.log_metric" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_mlflow_nb"
+library = "generic_mlflow"
+query = '"mlflow.log_metric" language:"Jupyter Notebook"'
+enabled = false
+
+[[search.queries]]
+name = "sig_tensorboard"
+library = "generic_tensorboard"
+query = '"tensorboard" "log_dir" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "sig_tensorboard_nb"
+library = "generic_tensorboard"
+query = '"tensorboard" "log_dir" language:"Jupyter Notebook"'
+enabled = false
+
+## --
+# Data handeling lib? If yes, need to add the other ones like spark et al.
+
+[[search.queries]]
+name = "numpy"
+library = "numpy"
+query = '"import numpy" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "pandas"
+library = "pandas"
+query = '"import pandas" language:Python'
+enabled = false
+
+## --
+# Notebook specific
+
+[[search.queries]]
+name = "filterwarnings_nb"
+library = "warnings"
+query = "warnings.filterwarnings('ignore') language:\"Jupyter Notebook\""
+# auto_partition = true
+enabled = true
+# Seems to work quite well!
+
+[[search.queries]]
+name = "nb_torch"
+library = "pytorch"
+query = '"import torch" language:"Jupyter Notebook"'
+enabled = false
+
+[[search.queries]]
+name = "nb_tensorflow"
+library = "tensorflow"
+query = '"import tensorflow" language:"Jupyter Notebook"'
+enabled = false
+
+[[search.queries]]
+name = "nb_sklearn"
+library = "scikit-learn"
+query = '"from sklearn" language:"Jupyter Notebook"'
+enabled = false
+
+
+# May be a good idea to add the kaggle notebook first cell as an heuristic
+# Also can add all the previous library heuristic to juoyter notebooks
+
+## --
+# Architecture specific libs and mlops
+
+[[search.queries]]
+name = "kubeflow_pipeline"
+library = "kubeflow"
+query = '"kfp.dsl.pipeline" language:Python'
+enabled = false
+auto_partition = false
+# kubeflow is usefull for test, return about 1.5k hits. But should probably not be used as a real heuristic.
+
+[[search.queries]]
+name = "airflow_dag"
+library = "airflow"
+query = '"from airflow import DAG" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "mlflow"
+library = "mlflow"
+query = '"import mlflow" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "topic_mlops"
+library = "mlops"
+type = "repositories"
+query = 'topic:mlops stars:>=2 created:>2022-12-31'
+enabled = false
+
+# ---------------------------------------------------------------------------
+# STEPS 2-3 - Filtering heuristics
+# [heuristics.<name>]   <name> is free; `type` defaults to <name>.
+#   enabled = true|false
+#   action  = "exclude" (drop failing items) | "flag" (keep them, only annotate)
+# Stages: hit (each file) -> aggregate (per repo, before enrichment, saves API quota)
+#         -> repo (after fetching repo metadata).
+# `ml-repo-sampler list` shows every available type and its parameters.
+# ---------------------------------------------------------------------------
+
+# Noise n°1: path of the hit contains example/tutorial/test keywords.
+# match = "token" matches whole words of the path (test_x.py, tests/) but not "latest/".
+[heuristics.path_noise]
+enabled = true
+action = "exclude"
+match = "token"
+patterns = ["example", "examples", "tutorial", "tutorials", "demo", "demos",
+            "sample", "samples", "test", "tests", "docs", "site-packages",
+            "dataset", "datasets", "agent", "agents", "course", "courses",
+            "lecture", "lectures", "lesson", "lessons"]
+# Maybe find a way to exclude benchmark repo (https://github.com/PCART-tools/PCBench) and reproduction package?
+
+
+# Noise n°2: multiplicity. Passes if nb_hits >= min_hits AND
+# (files >= min_distinct_files OR libs >= min_distinct_libs)  [combine = "any"; "all" for AND]
+[heuristics.multiplicity]
+enabled = false
+action = "exclude"
+min_distinct_files = 2
+min_distinct_libs = 2
+min_hits = 3
+# combine = "any"
+combine = "all"
+
+# Noise n°4: forks (known from search results, so applied before enrichment).
+[heuristics.exclude_forks]
+enabled = true
+action = "exclude"
+
+# Noise n°3: minimum stars.
+[heuristics.min_stars]
+enabled = false
+action = "exclude"
+min_stars = 2
+
+# Noise n°5: topics / description. negative_topics match whole topics exactly
+# (so "learning" does not reject "machine-learning"); negative_keywords match whole
+# words of the repo name/description.
+[heuristics.topics]
+enabled = false
+action = "exclude"
+negative_topics = ["tutorial", "tutorials", "course", "courses", "learning", "bootcamp"]
+negative_keywords = ["tutorial", "tutorials", "course", "courses", "bootcamp"]
+keyword_fields = ["name", "description"]
+positive_topics = ["machine-learning", "mlops", "scikit-learn", "deep-learning",
+                   "pytorch", "tensorflow", "ml-pipeline", "data-science"]
+require_positive = false
+
+# Noise n°6: freshness (study window and recent activity).
+[heuristics.created_window]
+enabled = false
+action = "exclude"
+after = 2022-12-31
+# before = 2026-06-30
+# ToDo: Unclear that after works in reverse chronological order
+
+[heuristics.recent_activity]
+type = "pushed_window"
+enabled = true
+# action = "flag"
+action = "exclude"
+after = 2025-01-01
+
+# Repo must have more than a single commit (e.g. drops one-shot uploads).
+# Needs [github] count_commits = true (one extra API call per enriched repo).
+[heuristics.min_commits]
+enabled = true
+action = "exclude"
+min_commits = 3
+
+[heuristics.not_archived]
+enabled = false
+action = "exclude"
+
+[heuristics.language]
+enabled = true
+action = "exclude"
+languages = ["Python", "Jupyter Notebook"]
+
+# Generic rule on any column of repos_evaluated.csv (op: ==, !=, >, >=, <, <=, in,
+# not_in, contains, not_contains, regex). stage = "aggregate" or "repo".
+[heuristics.min_size]
+type = "field"
+enabled = false
+action = "exclude"
+stage = "repo"
+field = "size_kb"
+op = ">="
+value = 50
+
+# ---------------------------------------------------------------------------
+# Optional random sample of the final candidates -> sample.csv (size = 0 disables)
+# ---------------------------------------------------------------------------
+[sampling]
+size = 30
+seed = 42

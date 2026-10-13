@@ -1,0 +1,277 @@
+# ml-repo-sampler configuration.
+# Relative paths are resolved from the directory of this file.
+# Select heuristics with `enabled = true/false` here, or on the CLI with
+# --query/-q NAME (only these queries), --enable/-e NAME, --disable/-d NAME.
+
+[run]
+name = "ml-pipelines"          # prefix of the run directory: <output_dir>/<name>-<timestamp>
+output_dir = "runs"
+log_level = "INFO"             # console level; run.log always holds DEBUG
+progress = true                # tqdm progress bars (auto-hidden when not in a terminal; CLI: --no-progress)
+plugins = []                   # Python files defining extra heuristic types (see docs/extending.md)
+
+[github]
+token_file = "secrets.toml"    # TOML file with [github] token = "..." or tokens = [...]
+token_env = "GITHUB_TOKEN"     # takes precedence over token_file if set (comma-separated allowed)
+per_page = 100
+max_pages = 10                 # 10 x 100 = GitHub's 1000 results cap per query
+search_min_interval = 6.5      # seconds between search calls (code search: 10 req/min per user)
+core_min_interval = 0.0        # seconds between /repos calls (5000 req/h per user)
+timeout = 30
+max_retries = 6
+count_commits = true           # enrich: +1 call per repo to store commit_count (min_commits)
+
+# ---------------------------------------------------------------------------
+# STEP 1 - Search heuristics
+# type = "code"         -> GET /search/code (qualifiers: language:, path:, filename:, extension:, repo:, org:)
+#                          Must contain at least one search term besides qualifiers.
+# type = "repositories" -> GET /search/repositories (qualifiers: topic:, stars:, created:, pushed:, language:)
+# partitions: each entry is appended to the query and run separately, to get past the
+#             1000-results cap (e.g. ["size:<1000", "size:1000..5000", "size:>5000"]).
+# auto_partition: true (or a qualifier: "size" for code; "created", "pushed", "stars",
+#             "forks", "size" for repositories) splits the query on that qualifier range,
+#             recursively, until every slice has <= 1000 results. This collects ALL results,
+#             at about total_count / 100 search calls (10 per minute and per token).
+#             auto_partition_range = [low, high] bounds the range (defaults: size 0..1000000
+#             bytes for code, created 2008-01-01..today).
+# ---------------------------------------------------------------------------
+
+[search]
+default_partitions = []        # used by queries that do not define `partitions`
+auto_partition = false         # default for queries that do not set `auto_partition`
+
+[[search.queries]]
+name = "sklearn_pipeline_from"
+library = "scikit-learn"
+query = '"from sklearn.pipeline import Pipeline" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "tensorflow"
+library = "tensorflow"
+query = '"import tensorflow" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "keras_sequential"
+library = "tensorflow_keras"
+query = '"tf.keras.Sequential" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "keras"
+library = "keras"
+query = '"import keras" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "torch"
+library = "pytorch"
+query = '"import torch" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "torch_sequential"
+library = "pytorch"
+query = '"torch.nn.Sequential" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "xgboost"
+library = "xgboost"
+query = '"import xgboost" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "xgboost_from"
+library = "xgboost"
+query = '"from xgboost import" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "lightgbm"
+library = "lightgbm"
+query = '"import lightgbm" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "paddlepaddle"
+library = "paddlepaddle"
+query = '"import paddle" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "jax"
+library = "jax"
+query = '"import jax" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "catboost"
+library = "catboost"
+query = '"import catboost" language:Python'
+enabled = true
+
+[[search.queries]]
+name = "fastai"
+library = "fastai"
+query = '"import fastai" language:Python'
+enabled = true
+
+## --
+# Data handeling lib? If yes, need to add the other ones like spark et al.
+
+[[search.queries]]
+name = "numpy"
+library = "numpy"
+query = '"import numpy" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "pandas"
+library = "pandas"
+query = '"import pandas" language:Python'
+enabled = false
+
+## --
+# Notebook specific
+
+[[search.queries]]
+name = "filterwarnings"
+library = "warnings"
+query = "warnings.filterwarnings('ignore') language:\"Jupyter Notebook\""
+# auto_partition = true
+enabled = false
+# Seems to work quite well!
+
+# May be a good idea to add the kaggle notebook first cell as an heuristic
+# Also can add all the previous library heuristic to juoyter notebooks
+
+## --
+# Architecture specific libs and mlops
+
+[[search.queries]]
+name = "kubeflow_pipeline"
+library = "kubeflow"
+query = '"kfp.dsl.pipeline" language:Python'
+enabled = false
+auto_partition = false
+# kubeflow is usefull for test, return about 1.5k hits. But should probably not be used as a real heuristic.
+
+[[search.queries]]
+name = "airflow_dag"
+library = "airflow"
+query = '"from airflow import DAG" language:Python'
+enabled = false
+
+[[search.queries]]
+name = "topic_mlops"
+library = "mlops"
+type = "repositories"
+query = 'topic:mlops stars:>=2 created:>2022-12-31'
+enabled = false
+
+# ---------------------------------------------------------------------------
+# STEPS 2-3 - Filtering heuristics
+# [heuristics.<name>]   <name> is free; `type` defaults to <name>.
+#   enabled = true|false
+#   action  = "exclude" (drop failing items) | "flag" (keep them, only annotate)
+# Stages: hit (each file) -> aggregate (per repo, before enrichment, saves API quota)
+#         -> repo (after fetching repo metadata).
+# `ml-repo-sampler list` shows every available type and its parameters.
+# ---------------------------------------------------------------------------
+
+# Noise n°1: path of the hit contains example/tutorial/test keywords.
+# match = "token" matches whole words of the path (test_x.py, tests/) but not "latest/".
+[heuristics.path_noise]
+enabled = true
+action = "exclude"
+match = "token"
+patterns = ["example", "examples", "tutorial", "tutorials", "demo", "demos",
+            "sample", "samples", "test", "tests", "docs"]
+# Maybe find a way to exclude benchmark repo (https://github.com/PCART-tools/PCBench) and reproduction package?
+
+
+# Noise n°2: multiplicity. Passes if nb_hits >= min_hits AND
+# (files >= min_distinct_files OR libs >= min_distinct_libs)  [combine = "any"; "all" for AND]
+[heuristics.multiplicity]
+enabled = false
+action = "exclude"
+min_distinct_files = 2
+min_distinct_libs = 2
+min_hits = 2
+# combine = "any"
+combine = "any"
+
+# Noise n°4: forks (known from search results, so applied before enrichment).
+[heuristics.exclude_forks]
+enabled = true
+action = "exclude"
+
+# Noise n°3: minimum stars.
+[heuristics.min_stars]
+enabled = false
+action = "exclude"
+min_stars = 2
+
+# Noise n°5: topics / description. negative_topics match whole topics exactly
+# (so "learning" does not reject "machine-learning"); negative_keywords match whole
+# words of the repo name/description.
+[heuristics.topics]
+enabled = false
+action = "exclude"
+negative_topics = ["tutorial", "tutorials", "course", "courses", "learning", "bootcamp"]
+negative_keywords = ["tutorial", "tutorials", "course", "courses", "bootcamp"]
+keyword_fields = ["name", "description"]
+positive_topics = ["machine-learning", "mlops", "scikit-learn", "deep-learning",
+                   "pytorch", "tensorflow", "ml-pipeline", "data-science"]
+require_positive = false
+
+# Noise n°6: freshness (study window and recent activity).
+[heuristics.created_window]
+enabled = false
+action = "exclude"
+after = 2022-12-31
+# before = 2026-06-30
+# ToDo: Unclear that after works in reverse chronological order
+
+[heuristics.recent_activity]
+type = "pushed_window"
+enabled = true
+# action = "flag"
+action = "exclude"
+after = 2025-01-01
+
+# Repo must have more than a single commit (e.g. drops one-shot uploads).
+# Needs [github] count_commits = true (one extra API call per enriched repo).
+[heuristics.min_commits]
+enabled = true
+action = "exclude"
+min_commits = 3
+
+[heuristics.not_archived]
+enabled = false
+action = "exclude"
+
+[heuristics.language]
+enabled = false
+action = "exclude"
+languages = ["Python", "Jupyter Notebook"]
+
+# Generic rule on any column of repos_evaluated.csv (op: ==, !=, >, >=, <, <=, in,
+# not_in, contains, not_contains, regex). stage = "aggregate" or "repo".
+[heuristics.min_size]
+type = "field"
+enabled = false
+action = "exclude"
+stage = "repo"
+field = "size_kb"
+op = ">="
+value = 50
+
+# ---------------------------------------------------------------------------
+# Optional random sample of the final candidates -> sample.csv (size = 0 disables)
+# ---------------------------------------------------------------------------
+[sampling]
+size = 30
+seed = 42
